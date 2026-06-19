@@ -2,8 +2,10 @@ import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import botocore.exceptions
 import pytest
 from temporalio.client import Client
+from temporalio.exceptions import ApplicationError
 from temporalio.testing import ActivityEnvironment
 
 from activities.tool_activities import (
@@ -160,7 +162,52 @@ class TestToolActivities:
             return_value="Invalid JSON response",
         ):
             activity_env = ActivityEnvironment()
-            with pytest.raises(Exception):  # Should raise JSON parsing error
+            with pytest.raises(json.JSONDecodeError):  # Should raise JSON parsing error
+                await activity_env.run(
+                    self.tool_activities.agent_toolPlanner, prompt_input
+                )
+
+    @pytest.mark.asyncio
+    async def test_agent_toolPlanner_access_denied_raises_non_retryable(self):
+        """AccessDeniedException from Bedrock must raise a non-retryable ApplicationError."""
+        prompt_input = ToolPromptInput(
+            prompt="Test prompt", context_instructions="Test context"
+        )
+
+        error_response = {"Error": {"Code": "AccessDeniedException", "Message": "Access denied"}}
+        client_error = botocore.exceptions.ClientError(error_response, "Converse")
+
+        with patch.object(
+            self.tool_activities.llm_client,
+            "converse",
+            side_effect=client_error,
+        ):
+            activity_env = ActivityEnvironment()
+            with pytest.raises(ApplicationError) as exc_info:
+                await activity_env.run(
+                    self.tool_activities.agent_toolPlanner, prompt_input
+                )
+
+        assert exc_info.value.non_retryable is True
+        assert "AccessDeniedException" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_agent_toolPlanner_throttling_error_is_retryable(self):
+        """ThrottlingException from Bedrock must propagate as-is (retryable)."""
+        prompt_input = ToolPromptInput(
+            prompt="Test prompt", context_instructions="Test context"
+        )
+
+        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
+        client_error = botocore.exceptions.ClientError(error_response, "Converse")
+
+        with patch.object(
+            self.tool_activities.llm_client,
+            "converse",
+            side_effect=client_error,
+        ):
+            activity_env = ActivityEnvironment()
+            with pytest.raises(botocore.exceptions.ClientError):
                 await activity_env.run(
                     self.tool_activities.agent_toolPlanner, prompt_input
                 )

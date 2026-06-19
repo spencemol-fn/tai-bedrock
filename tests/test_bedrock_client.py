@@ -26,6 +26,10 @@ _DEFAULT_ENV = {
     "BEDROCK_TEMPERATURE": "0.0",
     "BEDROCK_MAX_TOKENS": "1024",
     # guardrail vars intentionally absent
+    # Dummy credentials so tests are hermetic and don't need real AWS creds.
+    "AWS_ACCESS_KEY_ID": "testing",
+    "AWS_SECRET_ACCESS_KEY": "testing",
+    "AWS_SESSION_TOKEN": "testing",
 }
 
 
@@ -117,22 +121,22 @@ class TestBedrockClientHappyPath:
 
     def test_converse_request_contains_system_and_user_message(self) -> None:
         """Request sent to Bedrock must contain system and a user-role message."""
-        llm_client, stubber = _make_client_with_stubber()
+        llm_client, _ = _make_client_with_stubber()
         captured: list[dict] = []
 
-        def _capture(self_inner, op, params, **kw):  # type: ignore[misc]
-            captured.append(params)
+        def _capture(**kwargs: object) -> dict:
+            captured.append(dict(kwargs))
             return _converse_response("result")
 
-        stubber.add_response("converse", _converse_response("result"))
+        llm_client._client.converse = _capture  # type: ignore[assignment]
+        llm_client.converse(system="sys", prompt="user prompt")
 
-        with stubber:
-            llm_client.converse(system="sys", prompt="user prompt")
-
-        # The stubber validates the call was made; check the client state
-        assert llm_client.model_id == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-        assert llm_client.temperature == 0.0
-        assert llm_client.max_tokens == 1024
+        assert len(captured) == 1
+        req = captured[0]
+        assert req["system"] == [{"text": "sys"}]
+        assert req["messages"] == [
+            {"role": "user", "content": [{"text": "user prompt"}]}
+        ]
 
     def test_converse_no_guardrail_config_when_env_unset(self) -> None:
         """guardrailConfig must NOT be present when env vars are absent."""
@@ -158,7 +162,7 @@ class TestBedrockClientHappyPath:
         # We achieve this by patching _client.converse at the boto3 level.
         calls: list[dict] = []
 
-        def _mock_converse(**kwargs: dict) -> dict:
+        def _mock_converse(**kwargs: object) -> dict:
             calls.append(kwargs)
             return _converse_response("ok")
 
@@ -225,7 +229,7 @@ class TestBedrockClientGuardrailIntervention:
 
         calls: list[dict] = []
 
-        def _mock_converse(**kwargs: dict) -> dict:
+        def _mock_converse(**kwargs: object) -> dict:
             calls.append(kwargs)
             return _converse_response("ok")
 
@@ -258,7 +262,7 @@ class TestBedrockClientInferenceConfig:
 
         calls: list[dict] = []
 
-        def _mock_converse(**kwargs: dict) -> dict:
+        def _mock_converse(**kwargs: object) -> dict:
             calls.append(kwargs)
             return _converse_response("ok")
 
