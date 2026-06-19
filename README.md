@@ -6,13 +6,9 @@ The agent operates in single-agent mode by default, focusing on one specific goa
 
 Goals are organized in the `/goals/` directory by category (finance, HR, travel, ecommerce, etc.) and can leverage both native and MCP tools.
 
-The AI will respond with clarifications and ask for any missing information to that goal. You can configure it to use any LLM supported by [LiteLLM](https://docs.litellm.ai/docs/providers), including:
-- OpenAI models (GPT-4, GPT-3.5)
-- Anthropic Claude models
-- Google Gemini models
-- Deepseek models
-- Ollama models (local)
-- And many more!
+The AI will respond with clarifications and ask for any missing information to that goal. The agent uses **AWS Bedrock** with the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html), standardized on the **US cross-region inference profile for Claude Haiku 4.5** (`us.anthropic.claude-haiku-4-5-20251001-v1:0`). Any Bedrock model or inference profile can be used by setting `BEDROCK_MODEL_ID`.
+
+Optional **Bedrock Guardrails** enforcement can be enabled by setting `BEDROCK_GUARDRAIL_ID` and `BEDROCK_GUARDRAIL_VERSION`.
 
 It's really helpful to [watch the demo (5 minute YouTube video)](https://www.youtube.com/watch?v=GEXllEH2XiQ) to understand how interaction works.
 
@@ -45,10 +41,12 @@ This agent acts as an **MCP (Model Context Protocol) client**, enabling seamless
 - Set `AGENT_GOAL=goal_food_ordering` with `SHOW_CONFIRM=False` in `.env` for an example of a goal that calls MCP Tools (Stripe).
 
 ## Setup and Configuration
-See [the Setup guide](docs/setup.md) for detailed instructions. The basic configuration requires just two environment variables:
+See [the Setup guide](docs/setup.md) for detailed instructions. The basic configuration requires AWS credentials and the Bedrock model ID:
 ```bash
-LLM_MODEL=openai/gpt-4o  # or any other model supported by LiteLLM
-LLM_KEY=your-api-key-here
+BEDROCK_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
 ```
 
 ## Customizing Interaction & Tools

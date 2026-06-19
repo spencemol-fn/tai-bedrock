@@ -75,41 +75,56 @@ MCP (Model Context Protocol) tools are available for enhanced integration with e
 
 See the section Goal-Specific Tool Configuration below for tool configuration for specific goals.
 
-### LLM Configuration
+### LLM Configuration (AWS Bedrock)
 
-Note: We recommend using OpenAI's GPT-4o or Claude 3.5 Sonnet for the best results. There can be significant differences in performance and capabilities between models, especially for complex tasks.
+The agent uses the **AWS Bedrock Converse API** directly via `boto3`. It is standardized on the **US cross-region inference profile for Claude Haiku 4.5** but any Bedrock model or inference profile can be used.
 
-The agent uses LiteLLM to interact with various LLM providers. Configure the following environment variables in your `.env` file:
+Configure the following environment variables in your `.env` file:
 
-- `LLM_MODEL`: The model to use (e.g., "openai/gpt-4o", "anthropic/claude-3-sonnet", "google/gemini-pro", etc.)
-- `LLM_KEY`: Your API key for the selected provider
-- `LLM_BASE_URL`: (Optional) Custom base URL for the LLM provider. Useful for:
-  - Using Ollama with a custom endpoint
-  - Using a proxy or custom API gateway
-  - Testing with different API versions
+- `BEDROCK_MODEL_ID`: The Bedrock model or inference profile ARN (default: `us.anthropic.claude-haiku-4-5-20251001-v1:0`)
+- `AWS_REGION`: AWS region where Bedrock is available (default: `us-east-1`)
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`: AWS credentials (or use any boto3-supported credential chain: instance profile, assumed role, SSO, etc.)
+- `AWS_SESSION_TOKEN`: Required when using temporary / assumed-role credentials
+- `BEDROCK_TEMPERATURE`: Inference temperature (default: `0.0` for deterministic tool planning)
+- `BEDROCK_MAX_TOKENS`: Maximum output tokens (default: `1024`)
 
-LiteLLM will automatically detect the provider based on the model name. For example:
-- For OpenAI models: `openai/gpt-4o` or `openai/gpt-3.5-turbo`
-- For Anthropic models: `anthropic/claude-3-sonnet`
-- For Google models: `google/gemini-pro`
-- For Ollama models: `ollama/mistral` (requires `LLM_BASE_URL` set to your Ollama server)
-
-Example configurations:
+Example configuration:
 ```bash
-# For OpenAI
-LLM_MODEL=openai/gpt-4o
-LLM_KEY=your-api-key-here
+# Required
+BEDROCK_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
 
-# For Anthropic
-LLM_MODEL=anthropic/claude-3-sonnet
-LLM_KEY=your-api-key-here
-
-# For Ollama with custom URL
-LLM_MODEL=ollama/mistral
-LLM_BASE_URL=http://localhost:11434
+# Optional overrides
+# BEDROCK_TEMPERATURE=0.0
+# BEDROCK_MAX_TOKENS=1024
 ```
 
-For a complete list of supported models and providers, visit the [LiteLLM documentation](https://docs.litellm.ai/docs/providers).
+**Note:** `BEDROCK_MODEL_ID` should be a [cross-region inference profile ID](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html) (e.g. `us.anthropic.claude-haiku-4-5-20251001-v1:0`) or a full model ARN. Cross-region profiles provide higher throughput and automatic failover.
+
+#### Bedrock Guardrails (Optional)
+
+You can optionally enforce [Bedrock Guardrails](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html) on all LLM input/output. Both variables must be set to enable enforcement:
+
+```bash
+BEDROCK_GUARDRAIL_ID=your-guardrail-id
+BEDROCK_GUARDRAIL_VERSION=1           # integer version or DRAFT
+BEDROCK_GUARDRAIL_TRACE=enabled       # default: enabled
+```
+
+When a guardrail blocks a request, the agent returns a graceful conversational response (no crash, no retry storm) and logs the guardrail assessment.
+
+#### Required IAM Permissions
+
+The IAM principal needs at minimum:
+```json
+{
+  "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+  "Resource": "arn:aws:bedrock:*::foundation-model/*"
+}
+```
+If using guardrails, also add `bedrock:ApplyGuardrail`.
 
 ## Configuring Temporal Connection
 
@@ -321,7 +336,8 @@ For more details, check out [adding goals and tools guide](./adding-goals-and-to
 
 ## Setup Checklist
 [  ] copy `.env.example` to `.env` <br />
-[  ] Select an LLM and add your API key to `.env` <br />
+[  ] Set `BEDROCK_MODEL_ID`, `AWS_REGION`, and AWS credentials in `.env` <br />
+[  ] (Optional) set `BEDROCK_GUARDRAIL_ID` / `BEDROCK_GUARDRAIL_VERSION` for guardrails <br />
 [  ] (Optional) set your starting goal and goal category in  `.env` <br />
 [  ] (Optional) configure your Temporal Cloud settings in  `.env` <br />
 [  ] `uv run scripts/run_worker.py` <br />

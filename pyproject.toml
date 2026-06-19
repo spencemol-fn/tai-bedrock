@@ -21,6 +21,7 @@ dependencies = [
     "stripe>=11.4.1,<12",
     "gtfs-kit>=10.1.1,<11",
     "fastmcp>=2.7.0,<3",
+    "boto3>=1.35,<2",
 ]
 
 [project.urls]

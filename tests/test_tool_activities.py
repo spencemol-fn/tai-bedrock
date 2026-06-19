@@ -18,6 +18,7 @@ from models.data_types import (
     ValidationInput,
     ValidationResult,
 )
+from shared.bedrock_client import GuardrailInterventionError
 
 
 class TestToolActivities:
@@ -94,23 +95,18 @@ class TestToolActivities:
 
     @pytest.mark.asyncio
     async def test_agent_toolPlanner_success(self):
-        """Test agent_toolPlanner with successful LLM response."""
+        """Test agent_toolPlanner with successful Bedrock response."""
         prompt_input = ToolPromptInput(
             prompt="Test prompt", context_instructions="Test context instructions"
         )
 
-        # Mock the completion function
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[
-            0
-        ].message.content = (
+        converse_return = (
             '{"next": "confirm", "tool": "TestTool", "response": "Test response"}'
         )
 
-        with patch("activities.tool_activities.completion") as mock_completion:
-            mock_completion.return_value = mock_response
-
+        with patch.object(
+            self.tool_activities.llm_client, "converse", return_value=converse_return
+        ) as mock_converse:
             activity_env = ActivityEnvironment()
             result = await activity_env.run(
                 self.tool_activities.agent_toolPlanner, prompt_input
@@ -121,57 +117,48 @@ class TestToolActivities:
             assert result["tool"] == "TestTool"
             assert result["response"] == "Test response"
 
-            # Verify completion was called with correct parameters
-            mock_completion.assert_called_once()
-            call_args = mock_completion.call_args[1]
-            assert call_args["model"] == self.tool_activities.llm_model
-            assert len(call_args["messages"]) == 2
-            assert call_args["messages"][0]["role"] == "system"
-            assert call_args["messages"][1]["role"] == "user"
+            # Verify converse was called once
+            mock_converse.assert_called_once()
+            call_args = mock_converse.call_args
+            # system arg contains context_instructions
+            assert "Test context instructions" in call_args[0][0]
+            # prompt arg is the user prompt
+            assert call_args[0][1] == "Test prompt"
 
     @pytest.mark.asyncio
-    async def test_agent_toolPlanner_with_custom_base_url(self):
-        """Test agent_toolPlanner with custom base URL configuration."""
-        # Set up tool activities with custom base URL
-        with patch.dict(os.environ, {"LLM_BASE_URL": "https://custom.endpoint.com"}):
-            tool_activities = ToolActivities()
+    async def test_agent_toolPlanner_guardrail_intervention(self):
+        """Test agent_toolPlanner returns graceful dict on guardrail intervention."""
+        prompt_input = ToolPromptInput(
+            prompt="Harmful prompt", context_instructions="Test context"
+        )
 
-            prompt_input = ToolPromptInput(
-                prompt="Test prompt", context_instructions="Test context instructions"
+        with patch.object(
+            self.tool_activities.llm_client,
+            "converse",
+            side_effect=GuardrailInterventionError("Blocked.", {"topicPolicy": {}}),
+        ):
+            activity_env = ActivityEnvironment()
+            result = await activity_env.run(
+                self.tool_activities.agent_toolPlanner, prompt_input
             )
 
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[
-                0
-            ].message.content = '{"next": "done", "response": "Test"}'
-
-            with patch("activities.tool_activities.completion") as mock_completion:
-                mock_completion.return_value = mock_response
-
-                activity_env = ActivityEnvironment()
-                await activity_env.run(tool_activities.agent_toolPlanner, prompt_input)
-
-                # Verify base_url was included in the call
-                call_args = mock_completion.call_args[1]
-                assert "base_url" in call_args
-                assert call_args["base_url"] == "https://custom.endpoint.com"
+        assert result["next"] == "question"
+        assert result["response"] == "Blocked."
+        assert result["tool"] is None
+        assert result["args"] == {}
 
     @pytest.mark.asyncio
     async def test_agent_toolPlanner_json_parsing_error(self):
-        """Test agent_toolPlanner handles JSON parsing errors."""
+        """Test agent_toolPlanner raises on non-JSON Bedrock response."""
         prompt_input = ToolPromptInput(
             prompt="Test prompt", context_instructions="Test context instructions"
         )
 
-        # Mock the completion function to return invalid JSON
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Invalid JSON response"
-
-        with patch("activities.tool_activities.completion") as mock_completion:
-            mock_completion.return_value = mock_response
-
+        with patch.object(
+            self.tool_activities.llm_client,
+            "converse",
+            return_value="Invalid JSON response",
+        ):
             activity_env = ActivityEnvironment()
             with pytest.raises(Exception):  # Should raise JSON parsing error
                 await activity_env.run(
@@ -365,14 +352,11 @@ class TestEdgeCases:
             prompt=long_prompt, context_instructions="Test context instructions"
         )
 
-        # Mock the completion response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[
-            0
-        ].message.content = '{"next": "done", "response": "Processed long prompt"}'
+        converse_return = '{"next": "done", "response": "Processed long prompt"}'
 
-        with patch("activities.tool_activities.completion", return_value=mock_response):
+        with patch.object(
+            self.tool_activities.llm_client, "converse", return_value=converse_return
+        ):
             activity_env = ActivityEnvironment()
             result = await activity_env.run(
                 self.tool_activities.agent_toolPlanner, tool_prompt_input
