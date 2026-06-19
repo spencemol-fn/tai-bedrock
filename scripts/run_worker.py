@@ -20,9 +20,20 @@ async def main():
     # Load environment variables
     load_dotenv(override=True)
 
-    # Print LLM configuration info
-    llm_model = os.environ.get("LLM_MODEL", "openai/gpt-4")
-    print(f"Worker will use LLM model: {llm_model}")
+    # Print Bedrock configuration info
+    bedrock_model = os.environ.get(
+        "BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    )
+    aws_region = os.environ.get("AWS_REGION", "us-east-1")
+    guardrail_id = os.environ.get("BEDROCK_GUARDRAIL_ID", "")
+    guardrail_version = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "")
+    guardrails_status = (
+        f"on (id={guardrail_id})" if (guardrail_id and guardrail_version) else "off"
+    )
+    print(
+        f"Worker will use Bedrock model: {bedrock_model} "
+        f"(region={aws_region}, guardrails={guardrails_status})"
+    )
 
     # Create shared MCP client manager
     mcp_client_manager = MCPClientManager()
@@ -32,28 +43,6 @@ async def main():
 
     # Initialize the activities class with injected manager
     activities = ToolActivities(mcp_client_manager)
-    print(f"ToolActivities initialized with LLM model: {llm_model}")
-
-    # If using Ollama, pre-load the model to avoid cold start latency
-    if llm_model.startswith("ollama"):
-        print("\n======== OLLAMA MODEL INITIALIZATION ========")
-        print("Ollama models need to be loaded into memory on first use.")
-        print("This may take 30+ seconds depending on your hardware and model size.")
-        print("Please wait while the model is being loaded...")
-
-        # This call will load the model and measure initialization time
-        success = activities.warm_up_ollama()
-
-        if success:
-            print("===========================================================")
-            print("✅ Ollama model successfully pre-loaded and ready for requests!")
-            print("===========================================================\n")
-        else:
-            print("===========================================================")
-            print("⚠️ Ollama model pre-loading failed. The worker will continue,")
-            print("but the first actual request may experience a delay while")
-            print("the model is loaded on-demand.")
-            print("===========================================================\n")
 
     print("Worker ready to process tasks!")
     logging.basicConfig(level=logging.INFO)
