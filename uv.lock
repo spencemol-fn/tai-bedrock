@@ -823,28 +823,6 @@ wheels = [
 ]
 
 [[package]]
-name = "litellm"
-version = "1.70.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "click" },
-    { name = "httpx" },
-    { name = "importlib-metadata" },
-    { name = "jinja2" },
-    { name = "jsonschema" },
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "tiktoken" },
-    { name = "tokenizers" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/63/d0/49995a571fadc2e0e933fbd6ced032453edc45ef986dba199aac4744cecb/litellm-1.70.0.tar.gz", hash = "sha256:357f3891e38f23a12f0932c235ed860dc41bc5880afaee7229e6d25318652706", size = 7611957, upload-time = "2025-05-17T04:48:50.16Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/59/e28db726addb57a207dec6617eb0d69d7e46e701bc1e6a7d69971371c84f/litellm-1.70.0-py3-none-any.whl", hash = "sha256:7e094057b38ddb1d77f61452895835aa5d376db1850e9a1bc0342c5631d89638", size = 7877518, upload-time = "2025-05-17T04:48:46.347Z" },
-]
-
-[[package]]
 name = "markdown-it-py"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2030,7 +2008,6 @@ dependencies = [
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "gtfs-kit" },
-    { name = "litellm" },
     { name = "pandas" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -2055,7 +2032,6 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.6,<0.116" },
     { name = "fastmcp", specifier = ">=2.7.0,<3" },
     { name = "gtfs-kit", specifier = ">=10.1.1,<11" },
-    { name = "litellm", specifier = ">=1.70.0,<2" },
     { name = "pandas", specifier = ">=2.2.3,<3" },
     { name = "python-dotenv", specifier = ">=1.0.1,<2" },
     { name = "pyyaml", specifier = ">=6.0.2,<7" },
