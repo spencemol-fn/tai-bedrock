@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import json
 import os
@@ -5,8 +6,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
+import botocore.exceptions
 from dotenv import load_dotenv
-from litellm import completion
 from temporalio import activity
 from temporalio.common import RawValue
 from temporalio.exceptions import ApplicationError
@@ -19,6 +20,7 @@ from models.data_types import (
     ValidationResult,
 )
 from models.tool_definitions import MCPServerDefinition
+from shared.bedrock_client import BedrockLLMClient, GuardrailInterventionError
 from shared.mcp_client_manager import MCPClientManager
 
 # Import MCP client libraries
@@ -34,16 +36,24 @@ except ImportError:
 load_dotenv(override=True)
 
 
+# Bedrock ClientError codes that are permanent failures (no retry benefit).
+NON_RETRYABLE_BEDROCK_ERRORS = {
+    "AccessDeniedException",
+    "ValidationException",
+    "ResourceNotFoundException",
+}
+
+
 class ToolActivities:
     def __init__(self, mcp_client_manager: MCPClientManager = None):
-        """Initialize LLM client using LiteLLM and optional MCP client manager"""
-        self.llm_model = os.environ.get("LLM_MODEL", "openai/gpt-4")
-        self.llm_key = os.environ.get("LLM_KEY")
-        self.llm_base_url = os.environ.get("LLM_BASE_URL")
+        """Initialize Bedrock LLM client and optional MCP client manager."""
+        self.llm_client = BedrockLLMClient()
         self.mcp_client_manager = mcp_client_manager
-        print(f"Initializing ToolActivities with LLM model: {self.llm_model}")
-        if self.llm_base_url:
-            print(f"Using custom base URL: {self.llm_base_url}")
+        print(
+            f"Initializing ToolActivities with Bedrock model: {self.llm_client.model_id} "
+            f"(region={self.llm_client.region}, "
+            f"guardrails={'on' if self.llm_client.guardrails_on else 'off'})"
+        )
         if self.mcp_client_manager:
             print("MCP client manager enabled for connection pooling")
 
@@ -110,33 +120,16 @@ class ToolActivities:
 
     @activity.defn
     async def agent_toolPlanner(self, input: ToolPromptInput) -> dict:
-        messages = [
-            {
-                "role": "system",
-                "content": input.context_instructions
-                + ". The current date is "
-                + datetime.now().strftime("%B %d, %Y"),
-            },
-            {
-                "role": "user",
-                "content": input.prompt,
-            },
-        ]
+        system = (
+            input.context_instructions
+            + ". The current date is "
+            + datetime.now().strftime("%B %d, %Y")
+        )
 
         try:
-            completion_kwargs = {
-                "model": self.llm_model,
-                "messages": messages,
-                "api_key": self.llm_key,
-            }
-
-            # Add base_url if configured
-            if self.llm_base_url:
-                completion_kwargs["base_url"] = self.llm_base_url
-
-            response = completion(**completion_kwargs)
-
-            response_content = response.choices[0].message.content
+            response_content = await asyncio.to_thread(
+                self.llm_client.converse, system, input.prompt
+            )
             activity.logger.info(f"Raw LLM response: {repr(response_content)}")
             activity.logger.info(f"LLM response content: {response_content}")
             activity.logger.info(f"LLM response type: {type(response_content)}")
@@ -144,13 +137,28 @@ class ToolActivities:
                 f"LLM response length: {len(response_content) if response_content else 'None'}"
             )
 
-            # Use the new sanitize function
             response_content = self.sanitize_json_response(response_content)
             activity.logger.info(f"Sanitized response: {repr(response_content)}")
 
             return self.parse_json_response(response_content)
+
+        except GuardrailInterventionError as e:
+            activity.logger.warning(f"Guardrail intervened: {e.assessment}")
+            return {
+                "next": "question",
+                "response": e.message,
+                "tool": None,
+                "args": {},
+            }
+
+        except botocore.exceptions.ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in NON_RETRYABLE_BEDROCK_ERRORS:
+                raise ApplicationError(f"Bedrock {code}: {e}", non_retryable=True)
+            raise
+
         except Exception as e:
-            print(f"Error in LLM completion: {str(e)}")
+            print(f"Error in Bedrock converse: {str(e)}")
             raise
 
     def parse_json_response(self, response_content: str) -> dict:
