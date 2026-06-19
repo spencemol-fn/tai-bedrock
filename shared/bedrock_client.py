@@ -9,7 +9,6 @@ import os
 from typing import Any, Dict, Optional
 
 import boto3
-import botocore.exceptions
 
 
 class GuardrailInterventionError(Exception):

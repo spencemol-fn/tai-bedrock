@@ -45,7 +45,7 @@ NON_RETRYABLE_BEDROCK_ERRORS = {
 
 
 class ToolActivities:
-    def __init__(self, mcp_client_manager: MCPClientManager = None):
+    def __init__(self, mcp_client_manager: MCPClientManager | None = None):
         """Initialize Bedrock LLM client and optional MCP client manager."""
         self.llm_client = BedrockLLMClient()
         self.mcp_client_manager = mcp_client_manager
