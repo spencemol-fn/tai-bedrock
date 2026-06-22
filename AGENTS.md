@@ -27,7 +27,7 @@ docker compose up -d --no-deps --build api worker frontend
 
 Default URLs:
 - Temporal UI: http://localhost:8080
-- API: http://localhost:8000  
+- API: http://localhost:8008
 - Frontend: http://localhost:5173
 
 ### Local Development Setup

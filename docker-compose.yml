@@ -58,7 +58,7 @@ services:
       dockerfile: Dockerfile
     container_name: temporal-ai-agent-api
     ports:
-      - "8000:8000"
+      - "8008:8008"
     depends_on:
       - temporal
     networks:

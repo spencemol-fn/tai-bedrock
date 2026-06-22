@@ -2,7 +2,7 @@ services:
   api:
     volumes:
       - ./:/app:cached
-    command: uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uv run uvicorn api.main:app --host 0.0.0.0 --port 8008 --reload
 
   worker:
     volumes:

@@ -26,7 +26,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 # Expose the port the app will run on
-EXPOSE 8000
+EXPOSE 8008
 
 # Default to running only the API server; worker and train-api are separate Compose services
-CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8008"]

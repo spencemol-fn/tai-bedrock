@@ -4,7 +4,8 @@ import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any, Dict, List, Optional
 
 import botocore.exceptions
 from dotenv import load_dotenv

@@ -165,7 +165,7 @@ You can also run a local Temporal server using Docker Compose. See the `Developm
 
 Default urls:
 * Temporal UI: [http://localhost:8080](http://localhost:8080)
-* API: [http://localhost:8000](http://localhost:8000)
+* API: [http://localhost:8008](http://localhost:8008)
 * Frontend: [http://localhost:5173](http://localhost:5173)
 
 ### Local Machine (no docker)

@@ -10,7 +10,7 @@ Verify output is printed to console.
 ```bash
 uv run uvicorn api.main:app --reload
 ```
-API runs on port 8000.
+API runs on port 8008.
 
 ## 3. Start Frontend
 ```bash
